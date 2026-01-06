@@ -245,10 +245,17 @@ install_blueprint() {
   fi
 
   output "Downloading Blueprint from: $BLUEPRINT_URL"
-  curl -Lo blueprint-release.zip "$BLUEPRINT_URL"
+  if ! curl -Lo blueprint-release.zip "$BLUEPRINT_URL"; then
+    error "Failed to download Blueprint framework"
+    return 1
+  fi
 
   # Unzip Blueprint (overwrite existing files)
-  unzip -o blueprint-release.zip
+  if ! unzip -o blueprint-release.zip; then
+    error "Failed to extract Blueprint framework"
+    rm -f blueprint-release.zip
+    return 1
+  fi
 
   # Remove the downloaded zip file
   rm -f blueprint-release.zip
@@ -264,11 +271,17 @@ install_blueprint() {
   esac
 
   # Install yarn dependencies for Blueprint
-  yarn install
+  if ! yarn install; then
+    error "Failed to install Blueprint dependencies"
+    return 1
+  fi
 
   # Make Blueprint executable and run installation
   chmod +x blueprint.sh
-  bash blueprint.sh
+  if ! bash blueprint.sh; then
+    error "Blueprint installation script failed"
+    return 1
+  fi
 
   # Set correct ownership after Blueprint installation
   set_folder_permissions
