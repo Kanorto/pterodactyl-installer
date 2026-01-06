@@ -56,6 +56,9 @@ CONFIGURE_LETSENCRYPT="${CONFIGURE_LETSENCRYPT:-false}"
 # Firewall
 CONFIGURE_FIREWALL="${CONFIGURE_FIREWALL:-false}"
 
+# Blueprint framework
+INSTALL_BLUEPRINT="${INSTALL_BLUEPRINT:-false}"
+
 # Must be assigned to work, no default values
 email="${email:-}"
 user_email="${user_email:-}"
@@ -198,6 +201,79 @@ install_pteroq() {
   systemctl start pteroq
 
   success "Installed pteroq!"
+}
+
+# ----------- Blueprint installation ----------- #
+
+install_blueprint_deps() {
+  output "Installing Blueprint dependencies..."
+
+  case "$OS" in
+  ubuntu | debian)
+    # Install Node.js 20 for Blueprint
+    if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 20 ]]; then
+      curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      install_packages "nodejs"
+    fi
+    ;;
+  rocky | almalinux)
+    # Install Node.js 20 for Blueprint
+    if ! command -v node &>/dev/null || [[ $(node -v | cut -d. -f1 | tr -d 'v') -lt 20 ]]; then
+      curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+      install_packages "nodejs"
+    fi
+    ;;
+  esac
+
+  # Install Yarn globally
+  npm install -g yarn
+
+  success "Blueprint dependencies installed!"
+}
+
+install_blueprint() {
+  output "Installing Blueprint framework..."
+
+  cd /var/www/pterodactyl || exit
+
+  # Get the latest Blueprint release URL and download
+  BLUEPRINT_URL=$(curl -s https://api.github.com/repos/BlueprintFramework/framework/releases/latest | grep 'browser_download_url' | grep 'release.zip' | cut -d '"' -f 4)
+
+  if [ -z "$BLUEPRINT_URL" ]; then
+    warning "Could not fetch Blueprint release URL, using fallback..."
+    BLUEPRINT_URL="https://github.com/BlueprintFramework/framework/releases/latest/download/release.zip"
+  fi
+
+  output "Downloading Blueprint from: $BLUEPRINT_URL"
+  curl -Lo blueprint-release.zip "$BLUEPRINT_URL"
+
+  # Unzip Blueprint (overwrite existing files)
+  unzip -o blueprint-release.zip
+
+  # Remove the downloaded zip file
+  rm -f blueprint-release.zip
+
+  # Create .blueprintrc configuration file
+  case "$OS" in
+  ubuntu | debian)
+    echo 'WEBUSER="www-data"; OWNERSHIP="www-data:www-data"; USERSHELL="/bin/bash";' > .blueprintrc
+    ;;
+  rocky | almalinux)
+    echo 'WEBUSER="nginx"; OWNERSHIP="nginx:nginx"; USERSHELL="/bin/bash";' > .blueprintrc
+    ;;
+  esac
+
+  # Install yarn dependencies for Blueprint
+  yarn install
+
+  # Make Blueprint executable and run installation
+  chmod +x blueprint.sh
+  bash blueprint.sh
+
+  # Set correct ownership after Blueprint installation
+  set_folder_permissions
+
+  success "Blueprint framework installed!"
 }
 
 # -------- OS specific install functions ------- #
@@ -411,6 +487,12 @@ perform_install() {
   install_pteroq
   configure_nginx
   [ "$CONFIGURE_LETSENCRYPT" == true ] && letsencrypt
+
+  # Install Blueprint if requested
+  if [ "$INSTALL_BLUEPRINT" == true ]; then
+    install_blueprint_deps
+    install_blueprint
+  fi
 
   return 0
 }
