@@ -43,6 +43,9 @@ INSTALL_MARIADB="${INSTALL_MARIADB:-false}"
 # firewall
 CONFIGURE_FIREWALL="${CONFIGURE_FIREWALL:-false}"
 
+# Game server ports
+CONFIGURE_GAMESERVER_PORTS="${CONFIGURE_GAMESERVER_PORTS:-false}"
+
 # SSL (Let's Encrypt)
 CONFIGURE_LETSENCRYPT="${CONFIGURE_LETSENCRYPT:-false}"
 FQDN="${FQDN:-}"
@@ -144,6 +147,16 @@ firewall_ports() {
   output "Allowed port 8080"
   firewall_allow_ports "2022"
   output "Allowed port 2022"
+
+  if [ "$CONFIGURE_GAMESERVER_PORTS" == true ]; then
+    output "Opening game server ports (19132/UDP, 25500-25600/TCP+UDP)..."
+    firewall_allow_ports_udp "19132"
+    output "Allowed port 19132/UDP (Minecraft Bedrock)"
+    firewall_allow_ports "25500:25600"
+    output "Allowed ports 25500-25600/TCP"
+    firewall_allow_ports_udp "25500:25600"
+    output "Allowed ports 25500-25600/UDP"
+  fi
 
   success "Firewall ports opened!"
 }
