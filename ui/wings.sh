@@ -44,6 +44,9 @@ export INSTALL_MARIADB=false
 # Firewall
 export CONFIGURE_FIREWALL=false
 
+# Game server ports
+export CONFIGURE_GAMESERVER_PORTS=false
+
 # SSL (Let's Encrypt)
 export CONFIGURE_LETSENCRYPT=false
 export FQDN=""
@@ -141,6 +144,13 @@ ask_node_configuration() {
     done
   fi
 }
+ask_gameserver_ports() {
+  echo -e -n "* Do you want to allow game server ports (19132/UDP for Minecraft Bedrock, 25500-25600/TCP+UDP)? (y/N): "
+  read -r CONFIRM_GAMESERVER_PORTS
+  if [[ "$CONFIRM_GAMESERVER_PORTS" =~ [Yy] ]]; then
+    CONFIGURE_GAMESERVER_PORTS=true
+  fi
+}
 
 ####################
 ## MAIN FUNCTIONS ##
@@ -174,6 +184,8 @@ main() {
   print_brake 42
 
   ask_firewall CONFIGURE_FIREWALL
+
+  [ "$CONFIGURE_FIREWALL" == true ] && ask_gameserver_ports
 
   ask_database_user
 
