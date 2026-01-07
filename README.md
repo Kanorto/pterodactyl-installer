@@ -126,8 +126,6 @@ If your panel uses HTTPS, you have the option to:
 
 > **Warning**: Only use the insecure option in trusted environments. For production, always use valid SSL certificates.
 
-The script will then use the Wings binary to fetch the configuration from your panel automatically.
-
 ## Database Host Configuration (Wings)
 
 The Wings installer can also configure a MySQL/MariaDB database host on the Wings server. This allows Pterodactyl to create databases for game servers directly on the Wings node.

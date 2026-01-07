@@ -253,10 +253,20 @@ configure_node() {
     warning "Running with --allow-insecure flag (SSL certificate verification disabled)"
   fi
 
-  output "Running: wings configure --panel-url [PANEL_URL] --token [HIDDEN]${ALLOW_INSECURE:+ --allow-insecure}"
+  # Build a human-readable command string for logging
+  local WINGS_CMD_DISPLAY="wings configure --panel-url [PANEL_URL] --token [HIDDEN]"
+  if [ "$ALLOW_INSECURE" == true ]; then
+    WINGS_CMD_DISPLAY+=" --allow-insecure"
+  fi
+  output "Running: $WINGS_CMD_DISPLAY"
 
-  # Execute the command using array expansion (safe execution)
-  if wings "${WINGS_ARGS[@]}"; then
+  # Execute the command using array expansion (safe execution) and capture output
+  local WINGS_OUTPUT
+  local WINGS_EXIT_CODE
+  WINGS_OUTPUT=$(wings "${WINGS_ARGS[@]}" 2>&1)
+  WINGS_EXIT_CODE=$?
+
+  if [ $WINGS_EXIT_CODE -eq 0 ]; then
     success "Node configured successfully!"
     
     # Verify config file was created
@@ -266,11 +276,19 @@ configure_node() {
       warning "Configuration command succeeded but config.yml was not found"
     fi
   else
-    error "Failed to configure node with panel. Please check:"
+    error "Failed to configure node with panel (exit code: $WINGS_EXIT_CODE)"
+    if [ -n "$WINGS_OUTPUT" ]; then
+      error "Wings output:"
+      echo "$WINGS_OUTPUT" | while IFS= read -r line; do
+        error "  $line"
+      done
+    fi
+    error ""
+    error "Please check:"
     error "  - Panel URL is correct and reachable"
     error "  - Token is valid and not expired"
     error "  - Panel is running and accessible"
-    if [ "$ALLOW_INSECURE" == false ]; then
+    if [ "$ALLOW_INSECURE" != true ]; then
       error "  - If using self-signed certificates, try with --allow-insecure option"
     fi
     exit 1

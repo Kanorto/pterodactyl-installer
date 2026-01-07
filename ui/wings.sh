@@ -141,7 +141,8 @@ ask_node_configuration() {
     read -r INPUT_METHOD
 
     local MAX_RETRIES=5
-    local retry_count=0
+    local total_retry_count=0
+    local NODE_ID=""
 
     if [[ "$INPUT_METHOD" == "1" ]]; then
       # Option 1: Parse full auto-deploy command
@@ -151,18 +152,19 @@ ask_node_configuration() {
       output ""
       
       while [ -z "$PANEL_URL" ] || [ -z "$NODE_TOKEN" ]; do
-        retry_count=$((retry_count + 1))
-        if [ $retry_count -gt $MAX_RETRIES ]; then
-          error "Maximum retry attempts reached. Aborting auto-configuration."
-          CONFIGURE_NODE=false
-          return 1
-        fi
-
         echo -n "* Paste the auto-deploy command: "
         read -r AUTODEPLOY_CMD
 
         if [ -z "$AUTODEPLOY_CMD" ]; then
           error "Command cannot be empty"
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
           continue
         fi
 
@@ -175,6 +177,14 @@ ask_node_configuration() {
           PANEL_URL="${BASH_REMATCH[1]}"
         else
           error "Could not extract panel URL from the command"
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
           continue
         fi
 
@@ -184,6 +194,14 @@ ask_node_configuration() {
         else
           error "Could not extract token from the command"
           PANEL_URL=""
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
           continue
         fi
 
@@ -196,6 +214,14 @@ ask_node_configuration() {
         # Validate extracted values
         if [ -z "$PANEL_URL" ] || [ -z "$NODE_TOKEN" ]; then
           error "Failed to parse the auto-deploy command. Please check the format."
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
           continue
         fi
 
@@ -207,76 +233,111 @@ ask_node_configuration() {
       # Option 2: Manual entry
       # Get Panel URL
       while [ -z "$PANEL_URL" ]; do
-        retry_count=$((retry_count + 1))
-        if [ $retry_count -gt $MAX_RETRIES ]; then
-          error "Maximum retry attempts reached. Aborting auto-configuration."
-          CONFIGURE_NODE=false
-          return 1
-        fi
-
         echo -n "* Enter the panel URL (e.g., https://panel.example.com): "
         read -r PANEL_URL
 
-        [ -z "$PANEL_URL" ] && error "Panel URL cannot be empty"
+        if [ -z "$PANEL_URL" ]; then
+          error "Panel URL cannot be empty"
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
+        fi
       done
 
       # Get auto-deploy token
-      retry_count=0
       while [ -z "$NODE_TOKEN" ]; do
-        retry_count=$((retry_count + 1))
-        if [ $retry_count -gt $MAX_RETRIES ]; then
-          error "Maximum retry attempts reached. Aborting auto-configuration."
-          CONFIGURE_NODE=false
-          return 1
-        fi
-
         echo -n "* Enter the auto-deploy token from the panel: "
         read -r NODE_TOKEN
 
-        [ -z "$NODE_TOKEN" ] && error "Token cannot be empty"
+        if [ -z "$NODE_TOKEN" ]; then
+          error "Token cannot be empty"
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
+        fi
       done
     fi
 
-    # Common validation for both methods
-    # Validate URL format
-    if [[ ! "$PANEL_URL" =~ ^https?:// ]]; then
-      error "Panel URL must start with http:// or https://"
-      PANEL_URL=""
-      NODE_TOKEN=""
-      CONFIGURE_NODE=false
-      return 1
-    fi
-
-    # Remove trailing slash if present
-    PANEL_URL="${PANEL_URL%/}"
-
-    # Check if panel is reachable
-    output "Verifying panel connectivity..."
-    if ! curl -sSf --connect-timeout 10 --max-redirs 3 "$PANEL_URL" >/dev/null 2>&1; then
-      warning "Could not connect to the panel at $PANEL_URL"
-      echo -n "* Do you want to continue anyway? (y/N): "
-      read -r CONTINUE_ANYWAY
-      if [[ ! "$CONTINUE_ANYWAY" =~ [Yy] ]]; then
-        PANEL_URL=""
-        NODE_TOKEN=""
-        CONFIGURE_NODE=false
-        return 1
+    # Common validation for both methods with retry support
+    while true; do
+      # Validate URL format
+      if [[ ! "$PANEL_URL" =~ ^https?:// ]]; then
+        error "Panel URL must start with http:// or https://"
+        total_retry_count=$((total_retry_count + 1))
+        if [ $total_retry_count -ge $MAX_RETRIES ]; then
+          error "Maximum retry attempts reached. Aborting auto-configuration."
+          PANEL_URL=""
+          NODE_TOKEN=""
+          CONFIGURE_NODE=false
+          return 1
+        fi
+        echo -n "* Enter the panel URL (e.g., https://panel.example.com): "
+        read -r PANEL_URL
+        [ -z "$PANEL_URL" ] && continue
+        continue
       fi
-    else
-      success "Panel is reachable!"
-    fi
 
-    # Validate token format (should start with ptla_ for application tokens)
-    if [[ ! "$NODE_TOKEN" =~ ^ptla_ ]]; then
-      warning "Token does not appear to be a valid auto-deploy token (should start with 'ptla_')"
-      echo -n "* Do you want to continue anyway? (y/N): "
-      read -r CONTINUE_TOKEN
-      if [[ ! "$CONTINUE_TOKEN" =~ [Yy] ]]; then
-        NODE_TOKEN=""
-        CONFIGURE_NODE=false
-        return 1
+      # Remove trailing slash if present
+      PANEL_URL="${PANEL_URL%/}"
+
+      # Check if panel is reachable
+      output "Verifying panel connectivity..."
+      if ! curl -sSf --connect-timeout 10 --max-redirs 3 "$PANEL_URL" >/dev/null 2>&1; then
+        warning "Could not contact the panel at $PANEL_URL (network issue or HTTP error response)"
+        echo -n "* Do you want to continue anyway? (y/N): "
+        read -r CONTINUE_ANYWAY
+        if [[ ! "$CONTINUE_ANYWAY" =~ [Yy] ]]; then
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
+          echo -n "* Enter a different panel URL (e.g., https://panel.example.com): "
+          read -r PANEL_URL
+          [ -z "$PANEL_URL" ] && PANEL_URL="invalid"
+          continue
+        fi
+      else
+        success "Panel is reachable!"
       fi
-    fi
+
+      # Validate token format (should start with ptla_ for application tokens)
+      if [[ ! "$NODE_TOKEN" =~ ^ptla_ ]]; then
+        warning "Token does not appear to be a valid auto-deploy token (should start with 'ptla_')"
+        echo -n "* Do you want to continue anyway? (y/N): "
+        read -r CONTINUE_TOKEN
+        if [[ ! "$CONTINUE_TOKEN" =~ [Yy] ]]; then
+          total_retry_count=$((total_retry_count + 1))
+          if [ $total_retry_count -ge $MAX_RETRIES ]; then
+            error "Maximum retry attempts reached. Aborting auto-configuration."
+            PANEL_URL=""
+            NODE_TOKEN=""
+            CONFIGURE_NODE=false
+            return 1
+          fi
+          echo -n "* Enter the auto-deploy token from the panel: "
+          read -r NODE_TOKEN
+          [ -z "$NODE_TOKEN" ] && NODE_TOKEN="invalid"
+          continue
+        fi
+      fi
+
+      # All validations passed
+      break
+    done
 
     # Ask about SSL verification
     if [[ "$PANEL_URL" =~ ^https:// ]]; then
@@ -290,6 +351,14 @@ ask_node_configuration() {
         warning "SSL certificate verification will be disabled. Use only in trusted environments!"
       fi
     fi
+
+    # Final confirmation
+    output ""
+    output "Configuration Summary:"
+    output "  Panel URL: $PANEL_URL"
+    output "  Token: ${NODE_TOKEN:0:10}... (hidden)"
+    [ -n "$NODE_ID" ] && output "  Node ID: $NODE_ID"
+    output "  Allow Insecure: $ALLOW_INSECURE"
   fi
 }
 ask_gameserver_ports() {
