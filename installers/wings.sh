@@ -62,6 +62,7 @@ MYSQL_DBHOST_PASSWORD="${MYSQL_DBHOST_PASSWORD:-}"
 CONFIGURE_NODE="${CONFIGURE_NODE:-false}"
 PANEL_URL="${PANEL_URL:-}"
 NODE_TOKEN="${NODE_TOKEN:-}"
+ALLOW_INSECURE="${ALLOW_INSECURE:-false}"
 
 if [[ $CONFIGURE_DBHOST == true && -z "${MYSQL_DBHOST_PASSWORD}" ]]; then
   error "Mysql database host user password is required"
@@ -235,11 +236,45 @@ configure_node() {
     exit 1
   fi
 
+  # Verify wings binary exists and is executable
+  if [ ! -x "/usr/local/bin/wings" ]; then
+    error "Wings binary not found or not executable at /usr/local/bin/wings"
+    exit 1
+  fi
+
   cd /etc/pterodactyl || exit
 
-  wings configure --panel-url "$PANEL_URL" --token "$NODE_TOKEN"
+  # Build the wings configure command
+  WINGS_CMD="wings configure --panel-url \"$PANEL_URL\" --token \"$NODE_TOKEN\""
+  
+  # Add --allow-insecure flag if needed (for self-signed certs or SSL issues)
+  if [ "$ALLOW_INSECURE" == true ]; then
+    WINGS_CMD="$WINGS_CMD --allow-insecure"
+    warning "Running with --allow-insecure flag (SSL certificate verification disabled)"
+  fi
 
-  success "Node configured successfully!"
+  output "Running: wings configure --panel-url [PANEL_URL] --token [HIDDEN]${ALLOW_INSECURE:+ --allow-insecure}"
+
+  # Execute the command and capture the result
+  if eval "$WINGS_CMD"; then
+    success "Node configured successfully!"
+    
+    # Verify config file was created
+    if [ -f "/etc/pterodactyl/config.yml" ]; then
+      output "Configuration file created at /etc/pterodactyl/config.yml"
+    else
+      warning "Configuration command succeeded but config.yml was not found"
+    fi
+  else
+    error "Failed to configure node with panel. Please check:"
+    error "  - Panel URL is correct and reachable"
+    error "  - Token is valid and not expired"
+    error "  - Panel is running and accessible"
+    if [ "$ALLOW_INSECURE" == false ]; then
+      error "  - If using self-signed certificates, try with --allow-insecure option"
+    fi
+    exit 1
+  fi
 }
 
 # --------------- Main functions --------------- #

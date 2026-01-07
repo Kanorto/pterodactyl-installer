@@ -86,7 +86,27 @@ Before using this feature, you need to:
 During the Wings installation, the script will ask if you want to automatically configure the node. If you choose yes, you will need to provide:
 
 - **Panel URL**: The full URL of your Pterodactyl Panel (e.g., `https://panel.example.com`).
-- **Auto-deploy Token**: The token generated from your panel.
+- **Auto-deploy Token**: The token generated from your panel (starts with `ptla_`).
+
+### Validation and Checks
+
+The installer performs the following validations:
+
+- **URL Format**: Verifies the panel URL starts with `http://` or `https://`.
+- **Panel Connectivity**: Checks if the panel is reachable before proceeding.
+- **Token Format**: Validates that the token appears to be a valid auto-deploy token (should start with `ptla_`).
+- **Configuration Verification**: Confirms the config file was created after the auto-deploy process.
+
+### SSL Options
+
+If your panel uses HTTPS, you have the option to:
+
+- **Allow Insecure Connections**: Skip SSL certificate verification. This is useful if:
+  - Your panel uses a self-signed certificate.
+  - You're in a development environment.
+  - You're experiencing SSL verification issues.
+
+> **Warning**: Only use the insecure option in trusted environments. For production, always use valid SSL certificates.
 
 The script will then use the Wings binary to fetch the configuration from your panel automatically.
 

@@ -63,6 +63,7 @@ export MYSQL_DBHOST_PASSWORD=""
 export CONFIGURE_NODE=false
 export PANEL_URL=""
 export NODE_TOKEN=""
+export ALLOW_INSECURE=false
 
 # ------------ User input functions ------------ #
 
@@ -131,17 +132,75 @@ ask_node_configuration() {
   if [[ "$CONFIRM_NODE" =~ [Yy] ]]; then
     CONFIGURE_NODE=true
 
+    # Get Panel URL with validation
     while [ -z "$PANEL_URL" ]; do
       echo -n "* Enter the panel URL (e.g., https://panel.example.com): "
       read -r PANEL_URL
-      [ -z "$PANEL_URL" ] && error "Panel URL cannot be empty"
+
+      if [ -z "$PANEL_URL" ]; then
+        error "Panel URL cannot be empty"
+        continue
+      fi
+
+      # Validate URL format (must start with http:// or https://)
+      if [[ ! "$PANEL_URL" =~ ^https?:// ]]; then
+        error "Panel URL must start with http:// or https://"
+        PANEL_URL=""
+        continue
+      fi
+
+      # Remove trailing slash if present
+      PANEL_URL="${PANEL_URL%/}"
+
+      # Check if panel is reachable
+      output "Verifying panel connectivity..."
+      if ! curl -sSf --connect-timeout 10 "$PANEL_URL" >/dev/null 2>&1; then
+        warning "Could not connect to the panel at $PANEL_URL"
+        echo -n "* Do you want to continue anyway? (y/N): "
+        read -r CONTINUE_ANYWAY
+        if [[ ! "$CONTINUE_ANYWAY" =~ [Yy] ]]; then
+          PANEL_URL=""
+          continue
+        fi
+      else
+        success "Panel is reachable!"
+      fi
     done
 
+    # Get auto-deploy token with validation
     while [ -z "$NODE_TOKEN" ]; do
       echo -n "* Enter the auto-deploy token from the panel: "
       read -r NODE_TOKEN
-      [ -z "$NODE_TOKEN" ] && error "Token cannot be empty"
+
+      if [ -z "$NODE_TOKEN" ]; then
+        error "Token cannot be empty"
+        continue
+      fi
+
+      # Validate token format (should start with ptla_ for application tokens)
+      if [[ ! "$NODE_TOKEN" =~ ^ptla_ ]]; then
+        warning "Token does not appear to be a valid auto-deploy token (should start with 'ptla_')"
+        echo -n "* Do you want to continue anyway? (y/N): "
+        read -r CONTINUE_TOKEN
+        if [[ ! "$CONTINUE_TOKEN" =~ [Yy] ]]; then
+          NODE_TOKEN=""
+          continue
+        fi
+      fi
     done
+
+    # Ask about SSL verification
+    if [[ "$PANEL_URL" =~ ^https:// ]]; then
+      output ""
+      output "SSL Certificate Verification"
+      warning "If your panel uses a self-signed certificate or has SSL issues, you may need to skip SSL verification."
+      echo -n "* Do you want to allow insecure SSL connections (skip certificate verification)? (y/N): "
+      read -r CONFIRM_INSECURE
+      if [[ "$CONFIRM_INSECURE" =~ [Yy] ]]; then
+        ALLOW_INSECURE=true
+        warning "SSL certificate verification will be disabled. Use only in trusted environments!"
+      fi
+    fi
   fi
 }
 ask_gameserver_ports() {
