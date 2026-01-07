@@ -79,8 +79,9 @@ dep_install() {
 
   # Check if Docker is already installed
   if command -v docker &>/dev/null; then
-    output "Docker is already installed, skipping Docker installation..."
+    output "Docker is already installed, skipping repository setup. Packages will still be verified..."
   else
+    # Docker not installed, set up repositories
     case "$OS" in
     ubuntu | debian)
       install_packages "ca-certificates gnupg lsb-release"
@@ -103,10 +104,12 @@ dep_install() {
 
     # Update the new repos
     update_repos
-
-    # Install Docker
-    install_packages "docker-ce docker-ce-cli containerd.io"
   fi
+
+  # Install Docker packages - ensures all components are present
+  # For existing Docker: installs any missing packages (e.g., containerd.io)
+  # For fresh install: installs all Docker packages after repo setup
+  install_packages "docker-ce docker-ce-cli containerd.io"
 
   # Install epel-release for certbot on rocky/almalinux (needed regardless of Docker status)
   case "$OS" in
