@@ -83,7 +83,24 @@ Before using this feature, you need to:
 
 ### Usage
 
-During the Wings installation, the script will ask if you want to automatically configure the node. If you choose yes, you will need to provide:
+During the Wings installation, the script will ask if you want to automatically configure the node. You have two options:
+
+#### Option 1: Paste Full Auto-Deploy Command (Recommended)
+
+Simply copy the entire auto-deploy command from your panel and paste it when prompted. The script will automatically extract:
+
+- Panel URL
+- Token
+- Node ID
+
+Example command from panel:
+```bash
+cd /etc/pterodactyl && sudo wings configure --panel-url https://panel.example.com --token ptla_TjZR2yjajHRTENYD8z3X5ZNJd5JG8ak8Z0KFYAFmy8k --node 1
+```
+
+#### Option 2: Manual Entry
+
+Enter the panel URL and token separately:
 
 - **Panel URL**: The full URL of your Pterodactyl Panel (e.g., `https://panel.example.com`).
 - **Auto-deploy Token**: The token generated from your panel (starts with `ptla_`).
@@ -96,6 +113,7 @@ The installer performs the following validations:
 - **Panel Connectivity**: Checks if the panel is reachable before proceeding.
 - **Token Format**: Validates that the token appears to be a valid auto-deploy token (should start with `ptla_`).
 - **Configuration Verification**: Confirms the config file was created after the auto-deploy process.
+- **Command Parsing**: When using the full command option, validates that all required parameters can be extracted.
 
 ### SSL Options
 

@@ -132,62 +132,139 @@ ask_node_configuration() {
   if [[ "$CONFIRM_NODE" =~ [Yy] ]]; then
     CONFIGURE_NODE=true
 
-    # Get Panel URL with validation
-    while [ -z "$PANEL_URL" ]; do
-      echo -n "* Enter the panel URL (e.g., https://panel.example.com): "
-      read -r PANEL_URL
+    output ""
+    output "You can either:"
+    output "  [1] Paste the full auto-deploy command from the panel"
+    output "  [2] Enter the panel URL and token separately"
+    output ""
+    echo -n "* Choose an option (1/2): "
+    read -r INPUT_METHOD
 
-      if [ -z "$PANEL_URL" ]; then
-        error "Panel URL cannot be empty"
-        continue
-      fi
+    if [[ "$INPUT_METHOD" == "1" ]]; then
+      # Option 1: Parse full auto-deploy command
+      output ""
+      output "Paste the full auto-deploy command from the panel."
+      output "Example: cd /etc/pterodactyl && sudo wings configure --panel-url https://panel.example.com --token ptla_xxx --node 1"
+      output ""
+      
+      while [ -z "$PANEL_URL" ] || [ -z "$NODE_TOKEN" ]; do
+        echo -n "* Paste the auto-deploy command: "
+        read -r AUTODEPLOY_CMD
 
-      # Validate URL format (must start with http:// or https://)
-      if [[ ! "$PANEL_URL" =~ ^https?:// ]]; then
-        error "Panel URL must start with http:// or https://"
-        PANEL_URL=""
-        continue
-      fi
-
-      # Remove trailing slash if present
-      PANEL_URL="${PANEL_URL%/}"
-
-      # Check if panel is reachable
-      output "Verifying panel connectivity..."
-      if ! curl -sSf --connect-timeout 10 --max-redirs 3 "$PANEL_URL" >/dev/null 2>&1; then
-        warning "Could not connect to the panel at $PANEL_URL"
-        echo -n "* Do you want to continue anyway? (y/N): "
-        read -r CONTINUE_ANYWAY
-        if [[ ! "$CONTINUE_ANYWAY" =~ [Yy] ]]; then
-          PANEL_URL=""
+        if [ -z "$AUTODEPLOY_CMD" ]; then
+          error "Command cannot be empty"
           continue
         fi
-      else
-        success "Panel is reachable!"
-      fi
-    done
 
-    # Get auto-deploy token with validation
-    while [ -z "$NODE_TOKEN" ]; do
-      echo -n "* Enter the auto-deploy token from the panel: "
-      read -r NODE_TOKEN
-
-      if [ -z "$NODE_TOKEN" ]; then
-        error "Token cannot be empty"
-        continue
-      fi
-
-      # Validate token format (should start with ptla_ for application tokens)
-      if [[ ! "$NODE_TOKEN" =~ ^ptla_ ]]; then
-        warning "Token does not appear to be a valid auto-deploy token (should start with 'ptla_')"
-        echo -n "* Do you want to continue anyway? (y/N): "
-        read -r CONTINUE_TOKEN
-        if [[ ! "$CONTINUE_TOKEN" =~ [Yy] ]]; then
+        # Parse panel URL from the command
+        if [[ "$AUTODEPLOY_CMD" =~ --panel-url[[:space:]]+([^[:space:]]+) ]]; then
+          PANEL_URL="${BASH_REMATCH[1]}"
+        else
+          error "Could not extract panel URL from the command"
+          PANEL_URL=""
           NODE_TOKEN=""
           continue
         fi
+
+        # Parse token from the command
+        if [[ "$AUTODEPLOY_CMD" =~ --token[[:space:]]+([^[:space:]]+) ]]; then
+          NODE_TOKEN="${BASH_REMATCH[1]}"
+        else
+          error "Could not extract token from the command"
+          PANEL_URL=""
+          NODE_TOKEN=""
+          continue
+        fi
+
+        # Parse node ID from the command (optional, for display purposes)
+        if [[ "$AUTODEPLOY_CMD" =~ --node[[:space:]]+([0-9]+) ]]; then
+          NODE_ID="${BASH_REMATCH[1]}"
+          output "Detected Node ID: $NODE_ID"
+        fi
+
+        # Validate extracted values
+        if [ -z "$PANEL_URL" ] || [ -z "$NODE_TOKEN" ]; then
+          error "Failed to parse the auto-deploy command. Please check the format."
+          PANEL_URL=""
+          NODE_TOKEN=""
+          continue
+        fi
+
+        success "Successfully parsed auto-deploy command!"
+        output "  Panel URL: $PANEL_URL"
+        output "  Token: ${NODE_TOKEN:0:10}... (hidden)"
+      done
+    else
+      # Option 2: Manual entry (existing flow)
+      # Get Panel URL with validation
+      while [ -z "$PANEL_URL" ]; do
+        echo -n "* Enter the panel URL (e.g., https://panel.example.com): "
+        read -r PANEL_URL
+
+        if [ -z "$PANEL_URL" ]; then
+          error "Panel URL cannot be empty"
+          continue
+        fi
+
+        # Validate URL format (must start with http:// or https://)
+        if [[ ! "$PANEL_URL" =~ ^https?:// ]]; then
+          error "Panel URL must start with http:// or https://"
+          PANEL_URL=""
+          continue
+        fi
+      done
+
+      # Get auto-deploy token with validation
+      while [ -z "$NODE_TOKEN" ]; do
+        echo -n "* Enter the auto-deploy token from the panel: "
+        read -r NODE_TOKEN
+
+        if [ -z "$NODE_TOKEN" ]; then
+          error "Token cannot be empty"
+          continue
+        fi
+      done
+    fi
+
+    # Common validation for both methods
+    # Validate URL format
+    if [[ ! "$PANEL_URL" =~ ^https?:// ]]; then
+      error "Panel URL must start with http:// or https://"
+      PANEL_URL=""
+      NODE_TOKEN=""
+      return 1
+    fi
+
+    # Remove trailing slash if present
+    PANEL_URL="${PANEL_URL%/}"
+
+    # Check if panel is reachable
+    output "Verifying panel connectivity..."
+    if ! curl -sSf --connect-timeout 10 --max-redirs 3 "$PANEL_URL" >/dev/null 2>&1; then
+      warning "Could not connect to the panel at $PANEL_URL"
+      echo -n "* Do you want to continue anyway? (y/N): "
+      read -r CONTINUE_ANYWAY
+      if [[ ! "$CONTINUE_ANYWAY" =~ [Yy] ]]; then
+        PANEL_URL=""
+        NODE_TOKEN=""
+        CONFIGURE_NODE=false
+        return 1
       fi
-    done
+    else
+      success "Panel is reachable!"
+    fi
+
+    # Validate token format (should start with ptla_ for application tokens)
+    if [[ ! "$NODE_TOKEN" =~ ^ptla_ ]]; then
+      warning "Token does not appear to be a valid auto-deploy token (should start with 'ptla_')"
+      echo -n "* Do you want to continue anyway? (y/N): "
+      read -r CONTINUE_TOKEN
+      if [[ ! "$CONTINUE_TOKEN" =~ [Yy] ]]; then
+        NODE_TOKEN=""
+        CONFIGURE_NODE=false
+        return 1
+      fi
+    fi
 
     # Ask about SSL verification
     if [[ "$PANEL_URL" =~ ^https:// ]]; then
