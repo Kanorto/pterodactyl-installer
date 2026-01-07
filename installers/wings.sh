@@ -206,9 +206,14 @@ configure_mysql() {
 configure_node() {
   output "Configuring node with panel.."
 
+  if [ ! -d "/etc/pterodactyl" ]; then
+    error "Directory /etc/pterodactyl does not exist. Wings may not have been downloaded correctly."
+    exit 1
+  fi
+
   cd /etc/pterodactyl || exit
 
-  wings configure --panel-url "$PANEL_URL" --token "$NODE_TOKEN" --allow-insecure
+  wings configure --panel-url "$PANEL_URL" --token "$NODE_TOKEN"
 
   success "Node configured successfully!"
 }
