@@ -58,8 +58,19 @@ MYSQL_DBHOST_HOST="${MYSQL_DBHOST_HOST:-127.0.0.1}"
 MYSQL_DBHOST_USER="${MYSQL_DBHOST_USER:-pterodactyluser}"
 MYSQL_DBHOST_PASSWORD="${MYSQL_DBHOST_PASSWORD:-}"
 
+# Auto node configuration
+CONFIGURE_NODE="${CONFIGURE_NODE:-false}"
+PANEL_URL="${PANEL_URL:-}"
+NODE_TOKEN="${NODE_TOKEN:-}"
+ALLOW_INSECURE="${ALLOW_INSECURE:-false}"
+
 if [[ $CONFIGURE_DBHOST == true && -z "${MYSQL_DBHOST_PASSWORD}" ]]; then
   error "Mysql database host user password is required"
+  exit 1
+fi
+
+if [[ $CONFIGURE_NODE == true && ( -z "${PANEL_URL}" || -z "${NODE_TOKEN}" ) ]]; then
+  error "Panel URL and node token are required for auto node configuration"
   exit 1
 fi
 
@@ -230,6 +241,73 @@ configure_mysql() {
   success "MySQL configured!"
 }
 
+configure_node() {
+  output "Configuring node with panel.."
+
+  if [ ! -d "/etc/pterodactyl" ]; then
+    error "Directory /etc/pterodactyl does not exist. Wings may not have been downloaded correctly."
+    exit 1
+  fi
+
+  # Verify wings binary exists and is executable
+  if [ ! -x "/usr/local/bin/wings" ]; then
+    error "Wings binary not found or not executable at /usr/local/bin/wings"
+    exit 1
+  fi
+
+  cd /etc/pterodactyl || exit
+
+  # Build the wings configure command using an array (safe from command injection)
+  WINGS_ARGS=("configure" "--panel-url" "$PANEL_URL" "--token" "$NODE_TOKEN")
+  
+  # Add --allow-insecure flag if needed (for self-signed certs or SSL issues)
+  if [ "$ALLOW_INSECURE" == true ]; then
+    WINGS_ARGS+=("--allow-insecure")
+    warning "Running with --allow-insecure flag (SSL certificate verification disabled)"
+  fi
+
+  # Build a human-readable command string for logging
+  local WINGS_CMD_DISPLAY="wings configure --panel-url [PANEL_URL] --token [HIDDEN]"
+  if [ "$ALLOW_INSECURE" == true ]; then
+    WINGS_CMD_DISPLAY+=" --allow-insecure"
+  fi
+  output "Running: $WINGS_CMD_DISPLAY"
+
+  # Execute the command using array expansion (safe execution) and capture output
+  local WINGS_OUTPUT
+  local WINGS_EXIT_CODE
+  WINGS_OUTPUT=$(wings "${WINGS_ARGS[@]}" 2>&1)
+  WINGS_EXIT_CODE=$?
+
+  if [ $WINGS_EXIT_CODE -eq 0 ]; then
+    success "Node configured successfully!"
+    
+    # Verify config file was created
+    if [ -f "/etc/pterodactyl/config.yml" ]; then
+      output "Configuration file created at /etc/pterodactyl/config.yml"
+    else
+      warning "Configuration command succeeded but config.yml was not found"
+    fi
+  else
+    error "Failed to configure node with panel (exit code: $WINGS_EXIT_CODE)"
+    if [ -n "$WINGS_OUTPUT" ]; then
+      error "Wings output:"
+      echo "$WINGS_OUTPUT" | while IFS= read -r line; do
+        error "  $line"
+      done
+    fi
+    error ""
+    error "Please check:"
+    error "  - Panel URL is correct and reachable"
+    error "  - Token is valid and not expired"
+    error "  - Panel is running and accessible"
+    if [ "$ALLOW_INSECURE" != true ]; then
+      error "  - If using self-signed certificates, try with --allow-insecure option"
+    fi
+    exit 1
+  fi
+}
+
 # --------------- Main functions --------------- #
 
 perform_install() {
@@ -239,6 +317,7 @@ perform_install() {
   systemd_file
   [ "$CONFIGURE_DBHOST" == true ] && configure_mysql
   [ "$CONFIGURE_LETSENCRYPT" == true ] && letsencrypt
+  [ "$CONFIGURE_NODE" == true ] && configure_node
 
   return 0
 }
