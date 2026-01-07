@@ -296,8 +296,8 @@ install_blueprint() {
     ;;
   esac
 
-  # Install yarn dependencies for Blueprint (production only)
-  if ! yarn install --production; then
+  # Install yarn dependencies for Blueprint
+  if ! yarn install; then
     error "Failed to install Blueprint dependencies"
     return 1
   fi
