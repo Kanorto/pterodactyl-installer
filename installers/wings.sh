@@ -244,19 +244,19 @@ configure_node() {
 
   cd /etc/pterodactyl || exit
 
-  # Build the wings configure command
-  WINGS_CMD="wings configure --panel-url \"$PANEL_URL\" --token \"$NODE_TOKEN\""
+  # Build the wings configure command using an array (safe from command injection)
+  WINGS_ARGS=("configure" "--panel-url" "$PANEL_URL" "--token" "$NODE_TOKEN")
   
   # Add --allow-insecure flag if needed (for self-signed certs or SSL issues)
   if [ "$ALLOW_INSECURE" == true ]; then
-    WINGS_CMD="$WINGS_CMD --allow-insecure"
+    WINGS_ARGS+=("--allow-insecure")
     warning "Running with --allow-insecure flag (SSL certificate verification disabled)"
   fi
 
   output "Running: wings configure --panel-url [PANEL_URL] --token [HIDDEN]${ALLOW_INSECURE:+ --allow-insecure}"
 
-  # Execute the command and capture the result
-  if eval "$WINGS_CMD"; then
+  # Execute the command using array expansion (safe execution)
+  if wings "${WINGS_ARGS[@]}"; then
     success "Node configured successfully!"
     
     # Verify config file was created

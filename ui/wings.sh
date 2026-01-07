@@ -154,7 +154,7 @@ ask_node_configuration() {
 
       # Check if panel is reachable
       output "Verifying panel connectivity..."
-      if ! curl -sSf --connect-timeout 10 "$PANEL_URL" >/dev/null 2>&1; then
+      if ! curl -sSf --connect-timeout 10 --max-redirs 3 "$PANEL_URL" >/dev/null 2>&1; then
         warning "Could not connect to the panel at $PANEL_URL"
         echo -n "* Do you want to continue anyway? (y/N): "
         read -r CONTINUE_ANYWAY
