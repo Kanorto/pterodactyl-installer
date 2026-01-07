@@ -150,11 +150,22 @@ firewall_ports() {
 
   if [ "$CONFIGURE_GAMESERVER_PORTS" == true ]; then
     output "Opening game server ports (19132/UDP, 25500-25600/TCP+UDP)..."
+
+    # Use OS-appropriate port range syntax for firewall backends:
+    # - UFW (Debian/Ubuntu) expects colon syntax (25500:25600)
+    # - firewall-cmd (Rocky/AlmaLinux) expects hyphen syntax (25500-25600)
+    GAME_PORT_RANGE="25500:25600"
+    case "$OS" in
+    rocky | almalinux)
+      GAME_PORT_RANGE="25500-25600"
+      ;;
+    esac
+
     firewall_allow_ports_udp "19132"
     output "Allowed port 19132/UDP (Minecraft Bedrock)"
-    firewall_allow_ports "25500:25600"
+    firewall_allow_ports "$GAME_PORT_RANGE"
     output "Allowed ports 25500-25600/TCP"
-    firewall_allow_ports_udp "25500:25600"
+    firewall_allow_ports_udp "$GAME_PORT_RANGE"
     output "Allowed ports 25500-25600/UDP"
   fi
 
