@@ -55,8 +55,18 @@ MYSQL_DBHOST_HOST="${MYSQL_DBHOST_HOST:-127.0.0.1}"
 MYSQL_DBHOST_USER="${MYSQL_DBHOST_USER:-pterodactyluser}"
 MYSQL_DBHOST_PASSWORD="${MYSQL_DBHOST_PASSWORD:-}"
 
+# Auto node configuration
+CONFIGURE_NODE="${CONFIGURE_NODE:-false}"
+PANEL_URL="${PANEL_URL:-}"
+NODE_TOKEN="${NODE_TOKEN:-}"
+
 if [[ $CONFIGURE_DBHOST == true && -z "${MYSQL_DBHOST_PASSWORD}" ]]; then
   error "Mysql database host user password is required"
+  exit 1
+fi
+
+if [[ $CONFIGURE_NODE == true && ( -z "${PANEL_URL}" || -z "${NODE_TOKEN}" ) ]]; then
+  error "Panel URL and node token are required for auto node configuration"
   exit 1
 fi
 
@@ -193,6 +203,16 @@ configure_mysql() {
   success "MySQL configured!"
 }
 
+configure_node() {
+  output "Configuring node with panel.."
+
+  cd /etc/pterodactyl || exit
+
+  wings configure --panel-url "$PANEL_URL" --token "$NODE_TOKEN" --allow-insecure
+
+  success "Node configured successfully!"
+}
+
 # --------------- Main functions --------------- #
 
 perform_install() {
@@ -202,6 +222,7 @@ perform_install() {
   systemd_file
   [ "$CONFIGURE_DBHOST" == true ] && configure_mysql
   [ "$CONFIGURE_LETSENCRYPT" == true ] && letsencrypt
+  [ "$CONFIGURE_NODE" == true ] && configure_node
 
   return 0
 }

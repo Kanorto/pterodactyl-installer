@@ -56,6 +56,11 @@ export MYSQL_DBHOST_HOST="127.0.0.1"
 export MYSQL_DBHOST_USER="pterodactyluser"
 export MYSQL_DBHOST_PASSWORD=""
 
+# Auto node configuration
+export CONFIGURE_NODE=false
+export PANEL_URL=""
+export NODE_TOKEN=""
+
 # ------------ User input functions ------------ #
 
 ask_letsencrypt() {
@@ -109,6 +114,34 @@ ask_database_firewall() {
   fi
 }
 
+ask_node_configuration() {
+  output ""
+  output "Auto Node Configuration"
+  output "This feature allows you to automatically configure Wings by connecting to your panel."
+  output "You need to first create a node in the panel and get the auto-deploy token."
+  output "You can find this by going to Admin -> Nodes -> [Your Node] -> Configuration -> Generate Token"
+  output ""
+
+  echo -n "* Do you want to automatically configure this node with your panel? (y/N): "
+  read -r CONFIRM_NODE
+
+  if [[ "$CONFIRM_NODE" =~ [Yy] ]]; then
+    CONFIGURE_NODE=true
+
+    while [ -z "$PANEL_URL" ]; do
+      echo -n "* Enter the panel URL (e.g., https://panel.example.com): "
+      read -r PANEL_URL
+      [ -z "$PANEL_URL" ] && error "Panel URL cannot be empty"
+    done
+
+    while [ -z "$NODE_TOKEN" ]; do
+      echo -n "* Enter the auto-deploy token from the panel: "
+      read -r NODE_TOKEN
+      [ -z "$NODE_TOKEN" ] && error "Token cannot be empty"
+    done
+  fi
+}
+
 ####################
 ## MAIN FUNCTIONS ##
 ####################
@@ -131,9 +164,9 @@ main() {
 
   echo "* "
   echo "* The installer will install Docker, required dependencies for Wings"
-  echo "* as well as Wings itself. But it's still required to create the node"
-  echo "* on the panel and then place the configuration file on the node manually after"
-  echo "* the installation has finished. Read more about this process on the"
+  echo "* as well as Wings itself. You can optionally configure the node"
+  echo "* automatically using the auto-deploy feature from your panel."
+  echo "* Read more about this process on the"
   echo "* official documentation: $(hyperlink 'https://pterodactyl.io/wings/1.0/installing.html#configure')"
   echo "* "
   echo -e "* ${COLOR_RED}Note${COLOR_NC}: this script will not start Wings automatically (will install systemd service, not start it)."
@@ -194,6 +227,8 @@ main() {
     done
   fi
 
+  ask_node_configuration
+
   echo -n "* Proceed with installation? (y/N): "
 
   read -r CONFIRM
@@ -210,19 +245,33 @@ function goodbye {
   print_brake 70
   echo "* Wings installation completed"
   echo "*"
-  echo "* To continue, you need to configure Wings to run with your panel"
-  echo "* Please refer to the official guide, $(hyperlink 'https://pterodactyl.io/wings/1.0/installing.html#configure')"
-  echo "* "
-  echo "* You can either copy the configuration file from the panel manually to /etc/pterodactyl/config.yml"
-  echo "* or, you can use the \"auto deploy\" button from the panel and simply paste the command in this terminal"
-  echo "* "
-  echo "* You can then start Wings manually to verify that it's working"
-  echo "*"
-  echo "* sudo wings"
-  echo "*"
-  echo "* Once you have verified that it is working, use CTRL+C and then start Wings as a service (runs in the background)"
-  echo "*"
-  echo "* systemctl start wings"
+
+  if [ "$CONFIGURE_NODE" == true ]; then
+    echo "* Node has been automatically configured with your panel!"
+    echo "*"
+    echo "* You can now start Wings manually to verify that it's working"
+    echo "*"
+    echo "* sudo wings"
+    echo "*"
+    echo "* Once you have verified that it is working, use CTRL+C and then start Wings as a service (runs in the background)"
+    echo "*"
+    echo "* systemctl start wings"
+  else
+    echo "* To continue, you need to configure Wings to run with your panel"
+    echo "* Please refer to the official guide, $(hyperlink 'https://pterodactyl.io/wings/1.0/installing.html#configure')"
+    echo "* "
+    echo "* You can either copy the configuration file from the panel manually to /etc/pterodactyl/config.yml"
+    echo "* or, you can use the \"auto deploy\" button from the panel and simply paste the command in this terminal"
+    echo "* "
+    echo "* You can then start Wings manually to verify that it's working"
+    echo "*"
+    echo "* sudo wings"
+    echo "*"
+    echo "* Once you have verified that it is working, use CTRL+C and then start Wings as a service (runs in the background)"
+    echo "*"
+    echo "* systemctl start wings"
+  fi
+
   echo "*"
   echo -e "* ${COLOR_RED}Note${COLOR_NC}: It is recommended to enable swap (for Docker, read more about it in official documentation)."
   [ "$CONFIGURE_FIREWALL" == false ] && echo -e "* ${COLOR_RED}Note${COLOR_NC}: If you haven't configured your firewall, ports 8080 and 2022 needs to be open."

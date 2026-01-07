@@ -15,6 +15,8 @@ Read more about [Pterodactyl](https://pterodactyl.io/) here. This script is not 
 - Automatic installation of the Pterodactyl Wings (Docker, systemd).
 - Panel: (optional) automatic configuration of Let's Encrypt.
 - Panel: (optional) automatic configuration of firewall.
+- Wings: (optional) automatic node configuration using panel auto-deploy token.
+- Wings: (optional) database host configuration for creating game server databases.
 - Uninstallation support for both panel and wings.
 
 ## Help and support
@@ -66,6 +68,48 @@ Here is a [YouTube video](https://www.youtube.com/watch?v=E8UJhyUFoHM) that illu
 ## Firewall setup
 
 The installation scripts can install and configure a firewall for you. The script will ask whether you want this or not. It is highly recommended to opt-in for the automatic firewall setup.
+
+## Auto Node Configuration (Wings)
+
+The Wings installer supports automatic node configuration. This feature allows you to automatically configure Wings by connecting to your panel using an auto-deploy token.
+
+### Prerequisites
+
+Before using this feature, you need to:
+
+1. Have a Pterodactyl Panel already installed and running.
+2. Create a node in your panel (Admin -> Nodes -> Create New).
+3. Generate an auto-deploy token from the node's configuration page (Admin -> Nodes -> [Your Node] -> Configuration -> Generate Token).
+
+### Usage
+
+During the Wings installation, the script will ask if you want to automatically configure the node. If you choose yes, you will need to provide:
+
+- **Panel URL**: The full URL of your Pterodactyl Panel (e.g., `https://panel.example.com`).
+- **Auto-deploy Token**: The token generated from your panel.
+
+The script will then use the Wings binary to fetch the configuration from your panel automatically.
+
+## Database Host Configuration (Wings)
+
+The Wings installer can also configure a MySQL/MariaDB database host on the Wings server. This allows Pterodactyl to create databases for game servers directly on the Wings node.
+
+### When to use this feature
+
+Use this feature if you want to:
+
+- Create a public/shared database host for game servers.
+- Allow the panel to create and manage databases on the Wings server.
+- Have databases co-located with your game servers for better performance.
+
+### Configuration options
+
+During installation, you can configure:
+
+- **Database host username**: The MySQL user that Pterodactyl will use to create databases.
+- **Database host password**: The password for the database user.
+- **External access**: Whether to allow external connections to the database (required if the panel is on a different server).
+- **Firewall rules**: Optionally open port 3306 for database connections.
 
 ## Development & Ops
 
