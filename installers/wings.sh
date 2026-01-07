@@ -77,33 +77,43 @@ dep_install() {
 
   [ "$CONFIGURE_FIREWALL" == true ] && install_firewall && firewall_ports
 
+  # Check if Docker is already installed
+  if command -v docker &>/dev/null; then
+    output "Docker is already installed, skipping Docker installation..."
+  else
+    case "$OS" in
+    ubuntu | debian)
+      install_packages "ca-certificates gnupg lsb-release"
+
+      mkdir -p /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+
+      echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
+        $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null
+      ;;
+
+    rocky | almalinux)
+      install_packages "dnf-utils"
+      dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+
+      install_packages "device-mapper-persistent-data lvm2"
+      ;;
+    esac
+
+    # Update the new repos
+    update_repos
+
+    # Install Docker
+    install_packages "docker-ce docker-ce-cli containerd.io"
+  fi
+
+  # Install epel-release for certbot on rocky/almalinux (needed regardless of Docker status)
   case "$OS" in
-  ubuntu | debian)
-    install_packages "ca-certificates gnupg lsb-release"
-
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
-
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
-      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list >/dev/null
-    ;;
-
   rocky | almalinux)
-    install_packages "dnf-utils"
-    dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
-
     [ "$CONFIGURE_LETSENCRYPT" == true ] && install_packages "epel-release"
-
-    install_packages "device-mapper-persistent-data lvm2"
     ;;
   esac
-
-  # Update the new repos
-  update_repos
-
-  # Install dependencies
-  install_packages "docker-ce docker-ce-cli containerd.io"
 
   # Install mariadb if needed
   [ "$INSTALL_MARIADB" == true ] && install_packages "mariadb-server"
