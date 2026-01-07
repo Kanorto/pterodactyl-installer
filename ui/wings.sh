@@ -307,7 +307,8 @@ ask_node_configuration() {
           fi
           echo -n "* Enter a different panel URL (e.g., https://panel.example.com): "
           read -r PANEL_URL
-          [ -z "$PANEL_URL" ] && PANEL_URL="invalid"
+          # Force re-validation if empty
+          [ -z "$PANEL_URL" ] && PANEL_URL=""
           continue
         fi
       else
@@ -330,7 +331,8 @@ ask_node_configuration() {
           fi
           echo -n "* Enter the auto-deploy token from the panel: "
           read -r NODE_TOKEN
-          [ -z "$NODE_TOKEN" ] && NODE_TOKEN="invalid"
+          # Force re-validation if empty
+          [ -z "$NODE_TOKEN" ] && NODE_TOKEN=""
           continue
         fi
       fi
@@ -358,7 +360,11 @@ ask_node_configuration() {
     output "  Panel URL: $PANEL_URL"
     output "  Token: ${NODE_TOKEN:0:10}... (hidden)"
     [ -n "$NODE_ID" ] && output "  Node ID: $NODE_ID"
-    output "  Allow Insecure: $ALLOW_INSECURE"
+    if [ "$ALLOW_INSECURE" == true ]; then
+      output "  Allow Insecure: yes"
+    else
+      output "  Allow Insecure: no"
+    fi
   fi
 }
 ask_gameserver_ports() {
