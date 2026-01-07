@@ -223,10 +223,23 @@ install_blueprint_deps() {
       install_packages "nodejs"
     fi
     ;;
+  *)
+    error "Blueprint installation is only supported on Ubuntu, Debian, Rocky Linux, and AlmaLinux. Detected OS: ${OS:-unknown}."
+    return 1
+    ;;
   esac
 
   # Install Yarn globally
-  npm install -g yarn
+  if ! npm install -g yarn; then
+    error "Failed to install Yarn using npm. Please check your Node.js/npm installation and network connectivity."
+    return 1
+  fi
+
+  # Verify that Yarn is available after installation
+  if ! command -v yarn &>/dev/null; then
+    error "Yarn command not found after installation. Please ensure Yarn is available in your PATH."
+    return 1
+  fi
 
   success "Blueprint dependencies installed!"
 }
@@ -236,8 +249,17 @@ install_blueprint() {
 
   cd /var/www/pterodactyl || exit
 
-  # Get the latest Blueprint release URL and download
-  BLUEPRINT_URL=$(curl -s https://api.github.com/repos/BlueprintFramework/framework/releases/latest | grep 'browser_download_url' | grep 'release.zip' | cut -d '"' -f 4)
+  # Get the latest Blueprint release URL and download (with timeout for reliability)
+  if command -v jq >/dev/null 2>&1; then
+    # Prefer robust JSON parsing with jq when available
+    BLUEPRINT_URL=$(curl -s --connect-timeout 30 --max-time 60 https://api.github.com/repos/BlueprintFramework/framework/releases/latest \
+      | jq -r '.assets[]? | select(.name == "release.zip") | .browser_download_url' \
+      | head -n 1)
+  else
+    # Fallback to text-based parsing for maximum compatibility
+    BLUEPRINT_URL=$(curl -s --connect-timeout 30 --max-time 60 https://api.github.com/repos/BlueprintFramework/framework/releases/latest \
+      | grep 'browser_download_url' | grep 'release.zip' | cut -d '"' -f 4)
+  fi
 
   if [ -z "$BLUEPRINT_URL" ]; then
     warning "Could not fetch Blueprint release URL, using fallback..."
@@ -245,7 +267,7 @@ install_blueprint() {
   fi
 
   output "Downloading Blueprint from: $BLUEPRINT_URL"
-  if ! curl -Lo blueprint-release.zip "$BLUEPRINT_URL"; then
+  if ! curl --connect-timeout 30 --max-time 300 -Lo blueprint-release.zip "$BLUEPRINT_URL"; then
     error "Failed to download Blueprint framework"
     return 1
   fi
@@ -268,10 +290,14 @@ install_blueprint() {
   rocky | almalinux)
     echo 'WEBUSER="nginx"; OWNERSHIP="nginx:nginx"; USERSHELL="/bin/bash";' > .blueprintrc
     ;;
+  *)
+    error "Unsupported OS '$OS' for Blueprint installation: .blueprintrc configuration cannot be created."
+    return 1
+    ;;
   esac
 
-  # Install yarn dependencies for Blueprint
-  if ! yarn install; then
+  # Install yarn dependencies for Blueprint (production only)
+  if ! yarn install --production; then
     error "Failed to install Blueprint dependencies"
     return 1
   fi
@@ -503,8 +529,14 @@ perform_install() {
 
   # Install Blueprint if requested
   if [ "$INSTALL_BLUEPRINT" == true ]; then
-    install_blueprint_deps
-    install_blueprint
+    if ! install_blueprint_deps; then
+      error "Blueprint dependencies installation failed. Aborting Blueprint installation."
+      return 1
+    fi
+    if ! install_blueprint; then
+      error "Blueprint installation failed. Aborting installation."
+      return 1
+    fi
   fi
 
   return 0
